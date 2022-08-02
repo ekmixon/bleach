@@ -301,10 +301,7 @@ class LinkifyFilter(html5lib_shim.Filter):
 
                     # Run attributes through the callbacks to see what we
                     # should do with this match
-                    attrs = {
-                        (None, "href"): "mailto:%s" % match.group(0),
-                        "_text": match.group(0),
-                    }
+                    attrs = {(None, "href"): f"mailto:{match.group(0)}", "_text": match.group(0)}
                     attrs = self.apply_callbacks(attrs, True)
 
                     if attrs is None:
@@ -332,9 +329,7 @@ class LinkifyFilter(html5lib_shim.Filter):
                     if end < len(text):
                         new_tokens.append({"type": "Characters", "data": text[end:]})
 
-                    for new_token in new_tokens:
-                        yield new_token
-
+                    yield from new_tokens
                     continue
 
             yield token
@@ -351,11 +346,11 @@ class LinkifyFilter(html5lib_shim.Filter):
             # Try removing ( from the beginning and, if it's balanced, from the
             # end, too
             if fragment.startswith("("):
-                prefix = prefix + "("
+                prefix = f"{prefix}("
                 fragment = fragment[1:]
 
                 if fragment.endswith(")"):
-                    suffix = ")" + suffix
+                    suffix = f"){suffix}"
                     fragment = fragment[:-1]
                 continue
 
@@ -367,19 +362,19 @@ class LinkifyFilter(html5lib_shim.Filter):
 
             if fragment.endswith(")") and "(" not in fragment:
                 fragment = fragment[:-1]
-                suffix = ")" + suffix
+                suffix = f"){suffix}"
                 continue
 
             # Handle commas
             if fragment.endswith(","):
                 fragment = fragment[:-1]
-                suffix = "," + suffix
+                suffix = f",{suffix}"
                 continue
 
             # Handle periods
             if fragment.endswith("."):
                 fragment = fragment[:-1]
-                suffix = "." + suffix
+                suffix = f".{suffix}"
                 continue
 
             # Nothing matched, so we're done
@@ -419,11 +414,7 @@ class LinkifyFilter(html5lib_shim.Filter):
                     url, prefix, suffix = self.strip_non_url_bits(url)
 
                     # If there's no protocol, add one
-                    if PROTO_RE.search(url):
-                        href = url
-                    else:
-                        href = "http://%s" % url
-
+                    href = url if PROTO_RE.search(url) else f"http://{url}"
                     attrs = {(None, "href"): href, "_text": url}
                     attrs = self.apply_callbacks(attrs, True)
 
@@ -460,9 +451,7 @@ class LinkifyFilter(html5lib_shim.Filter):
                     if end < len(text):
                         new_tokens.append({"type": "Characters", "data": text[end:]})
 
-                    for new_token in new_tokens:
-                        yield new_token
-
+                    yield from new_tokens
                     continue
 
             yield token
@@ -477,10 +466,7 @@ class LinkifyFilter(html5lib_shim.Filter):
 
         """
         a_token = token_buffer[0]
-        if a_token["data"]:
-            attrs = a_token["data"]
-        else:
-            attrs = {}
+        attrs = a_token["data"] or {}
         text = self.extract_character_data(token_buffer)
         attrs["_text"] = text
 
@@ -499,9 +485,7 @@ class LinkifyFilter(html5lib_shim.Filter):
                 # The callbacks didn't change the text, so we yield the new "a"
                 # token, then whatever else was there, then the end "a" token
                 yield a_token
-                for mem in token_buffer[1:]:
-                    yield mem
-
+                yield from token_buffer[1:]
             else:
                 # If the callbacks changed the text, then we're going to drop
                 # all the tokens between the start and end "a" tags and replace
@@ -524,9 +508,7 @@ class LinkifyFilter(html5lib_shim.Filter):
                     # Add the end tag to the token buffer and then handle them
                     # and yield anything returned
                     token_buffer.append(token)
-                    for new_token in self.handle_a_tag(token_buffer):
-                        yield new_token
-
+                    yield from self.handle_a_tag(token_buffer)
                     # Clear "a" related state and continue since we've yielded all
                     # the tokens we're going to yield
                     in_a = False
@@ -563,11 +545,7 @@ class LinkifyFilter(html5lib_shim.Filter):
                 if self.parse_email:
                     new_stream = self.handle_email_addresses(new_stream)
 
-                new_stream = self.handle_links(new_stream)
-
-                for token in new_stream:
-                    yield token
-
+                yield from self.handle_links(new_stream)
                 # We've already yielded this token, so continue
                 continue
 

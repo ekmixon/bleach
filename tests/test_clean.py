@@ -250,11 +250,8 @@ def test_character_entities_handling(text, expected):
 )
 def test_stripping_tags(data, kwargs, expected):
     assert clean(data, strip=True, **kwargs) == expected
-    assert clean("  " + data + "  ", strip=True, **kwargs) == "  " + expected + "  "
-    assert (
-        clean("abc " + data + " def", strip=True, **kwargs)
-        == "abc " + expected + " def"
-    )
+    assert clean(f"  {data}  ", strip=True, **kwargs) == f"  {expected}  "
+    assert clean(f"abc {data} def", strip=True, **kwargs) == f"abc {expected} def"
 
 
 @pytest.mark.parametrize(
@@ -286,8 +283,8 @@ def test_stripping_tags(data, kwargs, expected):
 )
 def test_escaping_tags(data, expected):
     assert clean(data, strip=False) == expected
-    assert clean("  " + data + "  ", strip=False) == "  " + expected + "  "
-    assert clean("abc " + data + " def", strip=False) == "abc " + expected + " def"
+    assert clean(f"  {data}  ", strip=False) == f"  {expected}  "
+    assert clean(f"abc {data} def", strip=False) == f"abc {expected} def"
 
 
 @pytest.mark.parametrize(
@@ -675,7 +672,7 @@ def test_nonexistent_namespace():
     ],
 )
 def test_self_closing_tags_self_close(tag):
-    assert clean("<%s>" % tag, tags=[tag]) == "<%s>" % tag
+    assert clean(f"<{tag}>", tags=[tag]) == f"<{tag}>"
 
 
 # tags that get content passed through (i.e. parsed with parseRCDataRawtext)
@@ -691,41 +688,13 @@ _raw_tags = [
 ]
 
 
-@pytest.mark.parametrize(
-    "raw_tag, data, expected",
-    [
-        (
-            raw_tag,
-            "<noscript><%s></noscript><img src=x onerror=alert(1) />" % raw_tag,
-            "<noscript>&lt;%s&gt;</noscript>&lt;img src=x onerror=alert(1) /&gt;"
-            % raw_tag,
-        )
-        for raw_tag in _raw_tags
-    ],
-)
+@pytest.mark.parametrize("raw_tag, data, expected", [(raw_tag, f"<noscript><{raw_tag}></noscript><img src=x onerror=alert(1) />", f"<noscript>&lt;{raw_tag}&gt;</noscript>&lt;img src=x onerror=alert(1) /&gt;") for raw_tag in _raw_tags])
 def test_noscript_rawtag_(raw_tag, data, expected):
     # refs: bug 1615315 / GHSA-q65m-pv3f-wr5r
     assert clean(data, tags=["noscript", raw_tag]) == expected
 
 
-@pytest.mark.parametrize(
-    "namespace_tag, rc_data_element_tag, data, expected",
-    [
-        (
-            namespace_tag,
-            rc_data_element_tag,
-            "<%s><%s><img src=x onerror=alert(1)>"
-            % (namespace_tag, rc_data_element_tag),
-            "<%s><%s>&lt;img src=x onerror=alert(1)&gt;</%s></%s>"
-            % (namespace_tag, rc_data_element_tag, rc_data_element_tag, namespace_tag),
-        )
-        for namespace_tag in ["math", "svg"]
-        # https://dev.w3.org/html5/html-author/#rcdata-elements
-        # https://html.spec.whatwg.org/index.html#parsing-html-fragments
-        # in html5lib: 'style', 'script', 'xmp', 'iframe', 'noembed', 'noframes', and 'noscript'
-        for rc_data_element_tag in rcdataElements
-    ],
-)
+@pytest.mark.parametrize("namespace_tag, rc_data_element_tag, data, expected", [(namespace_tag, rc_data_element_tag, f"<{namespace_tag}><{rc_data_element_tag}><img src=x onerror=alert(1)>", f"<{namespace_tag}><{rc_data_element_tag}>&lt;img src=x onerror=alert(1)&gt;</{rc_data_element_tag}></{namespace_tag}>") for namespace_tag in ["math", "svg"] for rc_data_element_tag in rcdataElements])
 def test_namespace_rc_data_element_strip_false(
     namespace_tag, rc_data_element_tag, data, expected
 ):

@@ -132,15 +132,11 @@ def test_email_link_escaping(data, expected):
 
 
 def no_new_links(attrs, new=False):
-    if new:
-        return None
-    return attrs
+    return None if new else attrs
 
 
 def no_old_links(attrs, new=False):
-    if not new:
-        return None
-    return attrs
+    return attrs if new else None
 
 
 def noop(attrs, new=False):
@@ -200,9 +196,7 @@ def test_stop_email():
     """Returning None should prevent a link from being created."""
 
     def no_email(attrs, new=False):
-        if attrs[(None, "href")].startswith("mailto:"):
-            return None
-        return attrs
+        return None if attrs[(None, "href")].startswith("mailto:") else attrs
 
     text = "do not link james@example.com"
 

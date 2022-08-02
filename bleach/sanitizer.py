@@ -41,11 +41,12 @@ ALLOWED_PROTOCOLS = ["http", "https", "mailto"]
 
 #: Invisible characters--0 to and including 31 except 9 (tab), 10 (lf), and 13 (cr)
 INVISIBLE_CHARACTERS = "".join(
-    [chr(c) for c in chain(range(0, 9), range(11, 13), range(14, 32))]
+    [chr(c) for c in chain(range(9), range(11, 13), range(14, 32))]
 )
 
+
 #: Regexp for characters that are invisible
-INVISIBLE_CHARACTERS_RE = re.compile("[" + INVISIBLE_CHARACTERS + "]", re.UNICODE)
+INVISIBLE_CHARACTERS_RE = re.compile(f"[{INVISIBLE_CHARACTERS}]", re.UNICODE)
 
 #: String to replace invisible characters with. This can be a character, a
 #: string, or even a function that takes a Python re matchobj
@@ -213,11 +214,7 @@ def attribute_filter_factory(attributes):
 
             if "*" in attributes:
                 attr_val = attributes["*"]
-                if callable(attr_val):
-                    return attr_val(tag, attr, value)
-
-                return attr in attr_val
-
+                return attr_val(tag, attr, value) if callable(attr_val) else attr in attr_val
             return False
 
         return _attr_filter
@@ -290,8 +287,7 @@ class BleachSanitizerFilter(html5lib_shim.SanitizerFilter):
                 continue
 
             if isinstance(ret, list):
-                for subtoken in ret:
-                    yield subtoken
+                yield from ret
             else:
                 yield ret
 
@@ -300,33 +296,34 @@ class BleachSanitizerFilter(html5lib_shim.SanitizerFilter):
         characters_buffer = []
 
         for token in token_iterator:
-            if characters_buffer:
-                if token["type"] == "Characters":
-                    characters_buffer.append(token)
-                    continue
-                else:
-                    # Merge all the characters tokens together into one and then
-                    # operate on it.
-                    new_token = {
-                        "data": "".join(
-                            [char_token["data"] for char_token in characters_buffer]
-                        ),
-                        "type": "Characters",
-                    }
-                    characters_buffer = []
-                    yield new_token
-
-            elif token["type"] == "Characters":
+            if (
+                characters_buffer
+                and token["type"] == "Characters"
+                or not characters_buffer
+                and token["type"] == "Characters"
+            ):
                 characters_buffer.append(token)
                 continue
+            elif characters_buffer:
+                # Merge all the characters tokens together into one and then
+                # operate on it.
+                new_token = {
+                    "data": "".join(
+                        [char_token["data"] for char_token in characters_buffer]
+                    ),
+                    "type": "Characters",
+                }
+                characters_buffer = []
+                yield new_token
 
             yield token
 
-        new_token = {
-            "data": "".join([char_token["data"] for char_token in characters_buffer]),
+        yield {
+            "data": "".join(
+                [char_token["data"] for char_token in characters_buffer]
+            ),
             "type": "Characters",
         }
-        yield new_token
 
     def __iter__(self):
         return self.merge_characters(
@@ -365,15 +362,14 @@ class BleachSanitizerFilter(html5lib_shim.SanitizerFilter):
                 return self.disallowed_token(token)
 
         elif token_type == "Comment":
-            if not self.strip_html_comments:
-                # call lxml.sax.saxutils to escape &, <, and > in addition to " and '
-                token["data"] = html5lib_shim.escape(
-                    token["data"], entities={'"': "&quot;", "'": "&#x27;"}
-                )
-                return token
-            else:
+            if self.strip_html_comments:
                 return None
 
+            # call lxml.sax.saxutils to escape &, <, and > in addition to " and '
+            token["data"] = html5lib_shim.escape(
+                token["data"], entities={'"': "&quot;", "'": "&#x27;"}
+            )
+            return token
         elif token_type == "Characters":
             return self.sanitize_characters(token)
 
@@ -430,10 +426,7 @@ class BleachSanitizerFilter(html5lib_shim.SanitizerFilter):
                     else:
                         new_tokens.append({"type": "Entity", "name": entity})
 
-                    # Length of the entity plus 2--one for & at the beginning
-                    # and one for ; at the end
-                    remainder = part[len(entity) + 2 :]
-                    if remainder:
+                    if remainder := part[len(entity) + 2 :]:
                         new_tokens.append({"type": "Characters", "data": remainder})
                     continue
 
@@ -527,23 +520,25 @@ class BleachSanitizerFilter(html5lib_shim.SanitizerFilter):
                 # Drop values in svg attrs with non-local IRIs
                 if namespaced_name in self.svg_attr_val_allows_ref:
                     new_val = re.sub(r"url\s*\(\s*[^#\s][^)]+?\)", " ", unescape(val))
-                    new_val = new_val.strip()
-                    if not new_val:
-                        continue
-
-                    else:
+                    if new_val := new_val.strip():
                         # Replace the val with the unescaped version because
                         # it's a iri
                         val = new_val
 
+                    else:
+                        continue
+
                 # Drop href and xlink:href attr for svg elements with non-local IRIs
-                if (None, token["name"]) in self.svg_allow_local_href:
-                    if namespaced_name in [
+                if (
+                    (None, token["name"]) in self.svg_allow_local_href
+                    and namespaced_name
+                    in [
                         (None, "href"),
                         (html5lib_shim.namespaces["xlink"], "href"),
-                    ]:
-                        if re.search(r"^\s*[^#\s]", val):
-                            continue
+                    ]
+                    and re.search(r"^\s*[^#\s]", val)
+                ):
+                    continue
 
                 # If it's a style attribute, sanitize it
                 if namespaced_name == (None, "style"):
@@ -559,7 +554,7 @@ class BleachSanitizerFilter(html5lib_shim.SanitizerFilter):
     def disallowed_token(self, token):
         token_type = token["type"]
         if token_type == "EndTag":
-            token["data"] = "</%s>" % token["name"]
+            token["data"] = f'</{token["name"]}>'
 
         elif token["data"]:
             assert token_type in ("StartTag", "EmptyTag")
@@ -575,7 +570,7 @@ class BleachSanitizerFilter(html5lib_shim.SanitizerFilter):
                 if ns is None or ns not in html5lib_shim.prefixes:
                     namespaced_name = name
                 else:
-                    namespaced_name = "%s:%s" % (html5lib_shim.prefixes[ns], name)
+                    namespaced_name = f"{html5lib_shim.prefixes[ns]}:{name}"
 
                 attrs.append(
                     ' %s="%s"'
@@ -587,10 +582,10 @@ class BleachSanitizerFilter(html5lib_shim.SanitizerFilter):
                         v,
                     )
                 )
-            token["data"] = "<%s%s>" % (token["name"], "".join(attrs))
+            token["data"] = f'<{token["name"]}{"".join(attrs)}>'
 
         else:
-            token["data"] = "<%s>" % token["name"]
+            token["data"] = f'<{token["name"]}>'
 
         if token.get("selfClosing"):
             token["data"] = token["data"][:-1] + "/>"
@@ -637,9 +632,9 @@ class BleachSanitizerFilter(html5lib_shim.SanitizerFilter):
                 continue
 
             if prop.lower() in self.allowed_css_properties:
-                clean.append(prop + ": " + value + ";")
+                clean.append(f"{prop}: {value};")
 
             elif prop.lower() in self.allowed_svg_properties:
-                clean.append(prop + ": " + value + ";")
+                clean.append(f"{prop}: {value};")
 
         return " ".join(clean)

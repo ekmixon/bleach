@@ -258,7 +258,7 @@ def test_css_parsing_gauntlet_regex_backtracking(overlap_test_char):
     # refs: https://bugzilla.mozilla.org/show_bug.cgi?id=1623633
 
     def time_clean(test_char, size):
-        style_attr_value = (test_char + "a" + test_char) * size + "^"
+        style_attr_value = f"{test_char}a{test_char}" * size + "^"
         stmt = (
             """clean('''<a style='%s'></a>''', attributes={'a': ['style']})"""
             % style_attr_value

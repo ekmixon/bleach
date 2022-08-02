@@ -29,7 +29,7 @@ def get_version():
     vsre = r"""^__version__ = ['"]([^'"]*)['"]"""
     with io.open(fn, encoding='utf-8') as fp:
         version_file = fp.read()
-    return re.search(vsre, version_file, re.M).group(1)
+    return re.search(vsre, version_file, re.M)[1]
 
 
 setup(

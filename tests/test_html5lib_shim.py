@@ -118,7 +118,7 @@ def test_serializer(data, expected):
 )
 def test_bleach_html_parser(parser_args, data, expected):
     args = {"tags": None, "strip": True, "consume_entities": True}
-    args.update(parser_args)
+    args |= parser_args
 
     # Build a parser, walker, and serializer just like we do in clean()
     parser = html5lib_shim.BleachHTMLParser(**args)

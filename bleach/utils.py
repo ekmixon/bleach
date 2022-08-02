@@ -9,13 +9,13 @@ def _attr_key(attr):
     ``None`` to an empty string.
 
     """
-    key = (attr[0][0] or ""), attr[0][1]
-    return key
+    return (attr[0][0] or ""), attr[0][1]
 
 
 def alphabetize_attributes(attrs):
     """Takes a dict of attributes (or None) and returns them alphabetized"""
-    if not attrs:
-        return attrs
-
-    return OrderedDict([(k, v) for k, v in sorted(attrs.items(), key=_attr_key)])
+    return (
+        OrderedDict(list(sorted(attrs.items(), key=_attr_key)))
+        if attrs
+        else attrs
+    )
